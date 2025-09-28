@@ -61,7 +61,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_add_files_temp_repo() {
+    fn test_add() {
         // create temp dir and init empty repo (avoiding collision)
         let temp_dir = tempdir().unwrap();
         let repo = &Repository::init(temp_dir.path()).unwrap();

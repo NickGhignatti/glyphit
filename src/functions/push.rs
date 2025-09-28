@@ -64,3 +64,42 @@ pub fn push(repo: Option<&Repository>) -> Result<i8, String> {
 
     Ok(0)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+    use git2::{Repository, Signature};
+    use tempfile::tempdir;
+    use crate::functions::add::add;
+    use crate::functions::commit::commit;
+    use crate::functions::push::push;
+
+    #[test]
+    fn test_push() {
+        let temp_dir = tempdir().unwrap();
+        let repo = Repository::init(temp_dir.path()).unwrap();
+
+        let file_path = temp_dir.path().join("initial.txt");
+        File::create(&file_path).unwrap();
+
+        add(&vec!["initial.txt".to_string()], Some(&repo)).unwrap();
+
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", "Test User").unwrap();
+        config.set_str("user.email", "test@example.com").unwrap();
+
+        let tree;
+        let signature = Signature::now("Test User", "test@example.com").unwrap();
+        let mut index = repo.index().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(Some("HEAD"), &signature, &signature, "Initial commit", &tree, &[]).unwrap();
+
+        let _ = commit(Some(&repo), true);
+
+        let result = push(Some(&repo));
+
+        // we expect a fail due the absence of a real remote
+        assert!(result.is_err());
+    }
+}

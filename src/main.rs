@@ -15,7 +15,7 @@ fn main() {
             let _ = add(files, None);
         }
         Command::Commit => {
-            let _ = commit(None);
+            let _ = commit(None, false);
         }
         Command::Push => {
             let _ = push(None);
