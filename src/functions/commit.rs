@@ -69,7 +69,7 @@ fn select_emoji() -> Result<String, String> {
 /// - Constructs the commit tree from the current index.
 /// - Retrieves the current `HEAD` commit as the parent (if any).
 /// - Creates a commit with the assembled information.
-pub fn commit(repo: Option<&Repository>) -> Result<i8, String> {
+pub fn commit(repo: Option<&Repository>, debug: bool) -> Result<i8, String> {
     let owned_repo;
     let current_repo = match repo{
         Some(r) => r,
@@ -83,18 +83,30 @@ pub fn commit(repo: Option<&Repository>) -> Result<i8, String> {
         Err(e) => return Err(e.to_string())
     };
 
-    let mut commit_message = match select_emoji() {
-        Ok(emo) => match emo.chars().next() {
-            Some(char) => char.to_string(),
-            _ => "".to_string(),
-        },
-        Err(e) => return Err(e)
-    };
+    let mut commit_message = String::new();
 
-    let description = user_input("Provide a commit message > ".to_string());
-    commit_message.push_str(description.as_str());
-    let breaking_changes = user_input("Breaking changes > ".to_string());
-    commit_message.push_str(breaking_changes.as_str());
+    if !debug {
+        let binding;
+        let emoji = match select_emoji() {
+            Ok(emo) => match emo.chars().next() {
+                Some(char) => {
+                    binding = char.to_string();
+                    binding.as_str()
+                }
+                _ => "",
+            },
+            Err(e) => return Err(e)
+        };
+
+        commit_message.push_str(emoji);
+
+        let description = user_input("Provide a commit message > ".to_string());
+        commit_message.push_str(description.as_str());
+        let breaking_changes = user_input("Breaking changes > ".to_string());
+        commit_message.push_str(breaking_changes.as_str());
+    } else {
+        commit_message.push_str("unit testing");
+    }
 
     let name = repo_configuration.get_string("user.name").unwrap().to_string();
     let email = repo_configuration.get_string("user.email").unwrap().to_string();
@@ -137,4 +149,44 @@ pub fn commit(repo: Option<&Repository>) -> Result<i8, String> {
     ).unwrap();
 
     Ok(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::Repository;
+    use std::fs::File;
+    use tempfile::tempdir;
+    use crate::functions::add::add;
+
+
+    #[test]
+    fn test_commit() {
+        let temp_dir = tempdir().unwrap();
+        let repo = Repository::init(temp_dir.path()).unwrap();
+
+        let file_path = temp_dir.path().join("initial.txt");
+        File::create(&file_path).unwrap();
+
+        add(&vec!["initial.txt".to_string()], Some(&repo)).unwrap();
+
+        let mut config = repo.config().unwrap();
+        config.set_str("user.name", "Test User").unwrap();
+        config.set_str("user.email", "test@example.com").unwrap();
+
+        let tree;
+        let signature = Signature::now("Test User", "test@example.com").unwrap();
+        let mut index = repo.index().unwrap();
+        let tree_id = index.write_tree().unwrap();
+        tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(Some("HEAD"), &signature, &signature, "Initial commit", &tree, &[]).unwrap();
+
+        let result = commit(Some(&repo), true);
+
+        assert!(result.is_ok());
+
+        let head = repo.head().unwrap();
+        let commit = head.peel_to_commit().unwrap();
+        assert_eq!(commit.message().unwrap(), "unit testing");
+    }
 }
