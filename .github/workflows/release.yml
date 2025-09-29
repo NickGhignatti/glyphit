@@ -10,19 +10,41 @@ jobs:
     strategy:
       matrix:
         platform:
-          - os-name: Linux
+          - os-name: Linux-x86_64
             runs-on: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
 
-          - os-name: Windows
+          - os-name: Linux-aarch64
+            runs-on: ubuntu-24.04
+            target: aarch64-unknown-linux-musl
+
+          - os-name: Windows-x86_64
             runs-on: windows-latest
+            target: x86_64-pc-windows-msvc
 
-          - os-name: macOS
+          - os-name: macOS-x86_64
             runs-on: macOS-latest
+            target: x86_64-apple-darwin
 
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install OpenSSL development packages (linux)
+        if: contains(matrix.platform.target, 'linux')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Install OpenSSL (macOS)
+        if: matrix.platform.os-name == 'macOS-x86_64'
+        run: |
+          brew install openssl@3
+          echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=$(brew --prefix openssl@3)/lib" >> $GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=$(brew --prefix openssl@3)/include" >> $GITHUB_ENV
+
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
         with:
@@ -30,6 +52,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: "--locked --release"
           strip: true
+
       - name: Publish artifacts and release
         uses: houseabsolute/actions-rust-release@v0
         with:
