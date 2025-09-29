@@ -30,9 +30,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: OpenSSL installation (macOS)
+      - name: Install x86_64 OpenSSL for cross-compilation
         if: matrix.platform.os-name == 'macOS-x86_64'
-        run: brew install openssl
+        run: |
+          sudo softwareupdate --install-rosetta --agree-to-license || true
+          arch -x86_64 brew install openssl
+          echo "OPENSSL_DIR=/usr/local/opt/openssl@3" >> $GITHUB_ENV
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
         with:
