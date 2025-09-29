@@ -30,6 +30,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: OpenSSL installation (macOS)
+        if: matrix.platform.os-name == 'macOS-x86_64'
+        run: brew install openssl
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
         with:
