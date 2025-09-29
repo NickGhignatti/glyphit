@@ -10,32 +10,19 @@ jobs:
     strategy:
       matrix:
         platform:
-          - os-name: Linux-x86_64
+          - os-name: Linux
             runs-on: ubuntu-24.04
-            target: x86_64-unknown-linux-musl
 
-          - os-name: Linux-aarch64
-            runs-on: ubuntu-24.04
-            target: aarch64-unknown-linux-musl
-
-          - os-name: Windows-x86_64
+          - os-name: Windows
             runs-on: windows-latest
-            target: x86_64-pc-windows-msvc
 
-          - os-name: macOS-x86_64
+          - os-name: macOS
             runs-on: macOS-latest
-            target: x86_64-apple-darwin
 
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install x86_64 OpenSSL for cross-compilation
-        if: matrix.platform.os-name == 'macOS-x86_64'
-        run: |
-          sudo softwareupdate --install-rosetta --agree-to-license || true
-          arch -x86_64 brew install openssl
-          echo "OPENSSL_DIR=/usr/local/opt/openssl@3" >> $GITHUB_ENV
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
         with:
