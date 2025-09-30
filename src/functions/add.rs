@@ -1,4 +1,3 @@
-use std::path::Path;
 use git2::Repository;
 use crate::types::repository::get_current_repository;
 
@@ -41,10 +40,15 @@ pub fn add(files: &Vec<String>, repo: Option<&Repository>) -> Result<i8, String>
         Err(e) => return Err(e.to_string()),
     };
 
-    for file in files {
-        let file_path = Path::new(&file);
-        index.add_path(file_path).expect("Error while adding file path to index");
-    }
+    let corrected_files: Vec<String> = files
+        .iter()
+        .map(|f| {
+            f.strip_prefix(".\\").unwrap_or(f)
+                .to_string()
+        })
+        .collect();
+
+    index.add_all(corrected_files, git2::IndexAddOption::DEFAULT, None).expect("Error while adding all files");
 
     // write index to disk
     index.write().expect("Error while writing the index in the disk");

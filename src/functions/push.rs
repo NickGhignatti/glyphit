@@ -44,23 +44,36 @@ pub fn push(repo: Option<&Repository>) -> Result<i8, String> {
         }
     };
 
-    let head = match current_repo.head() {
-        Ok(h) => h,
-        Err(e) => return Err(e.to_string()),
-    };
-    let branch = head.shorthand().unwrap();
-    let refspec = format!("refs/heads/{}:refs/heads/{}", branch, branch);
+    match current_repo.config() {
+        Ok(config) => {
+            let repo_url = config.get_string("origin.remote.url");
+            match repo_url {
+                Ok(url) => {
+                    let head = match current_repo.head() {
+                        Ok(h) => h,
+                        Err(e) => return Err(e.to_string()),
+                    };
+                    let branch = head.shorthand().unwrap();
+                    let refspec = format!("refs/heads/{}:refs/heads/{}", branch, branch);
 
-    let callbacks = create_ssh_callbacks();
+                    let mut push_options = PushOptions::new();
 
-    let mut push_options = PushOptions::new();
-    push_options.remote_callbacks(callbacks);
+                    if !url.contains("https") {
+                        let callbacks = create_ssh_callbacks();
+                        push_options.remote_callbacks(callbacks);
+                    }
+                    let mut origin = match current_repo.find_remote("origin") {
+                        Ok(org) => org,
+                        Err(e) => return Err(e.to_string())
+                    };
 
-    let mut origin = match current_repo.find_remote("origin") {
-        Ok(org) => org,
+                    let _ = origin.push(&[refspec], Some(& mut push_options));
+                },
+                Err(e) => return Err(e.to_string())
+            }
+        },
         Err(e) => return Err(e.to_string())
-    };
-    let _ = origin.push(&[refspec], Some(&mut push_options));
+    }
 
     Ok(0)
 }
