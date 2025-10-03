@@ -1,6 +1,6 @@
 use std::io::Write;
-use git2::{Repository, Signature};
-use inquire::Select;
+use git2::{Error, ErrorClass, ErrorCode, Oid, Repository, Signature};
+use inquire::{InquireError, Select};
 use crate::types::repository::get_current_repository;
 
 fn user_input(message: String) -> String {
@@ -17,7 +17,7 @@ fn user_input(message: String) -> String {
     input.trim().to_string()
 }
 
-fn select_emoji() -> Result<String, String> {
+fn select_emoji() -> Result<String, InquireError> {
     let options = vec![
         "🎨 :art: Improve structure/format",
         "⚡️ :zap: Improve performance",
@@ -30,7 +30,7 @@ fn select_emoji() -> Result<String, String> {
 
     match prompt.prompt() {
         Ok(choice) => Ok(choice.to_string()),
-        Err(e) => Err(e.to_string()),
+        Err(e) => Err(e),
     }
 }
 
@@ -50,7 +50,7 @@ fn select_emoji() -> Result<String, String> {
 ///
 /// Returns an `Err(String)` if:
 /// - The current repository cannot be determined.
-/// - Configuration values for user name or email cannot be retrieved.
+/// - Configuration values for username or email cannot be retrieved.
 /// - The emoji selection fails.
 /// - There are problems accessing the repository index or writing the tree.
 /// - The HEAD commit cannot be retrieved (in case of an existing commit).
@@ -69,18 +69,18 @@ fn select_emoji() -> Result<String, String> {
 /// - Constructs the commit tree from the current index.
 /// - Retrieves the current `HEAD` commit as the parent (if any).
 /// - Creates a commit with the assembled information.
-pub fn commit(repo: Option<&Repository>, debug: bool) -> Result<i8, String> {
+pub fn commit(repo: Option<&Repository>, debug: bool) -> Result<Oid, Error> {
     let owned_repo;
     let current_repo = match repo{
         Some(r) => r,
         _ => {
-            owned_repo = get_current_repository().map_err(|e| e.to_string())?;
+            owned_repo = get_current_repository().map_err(|e| e)?;
             &owned_repo
         }
     };
     let repo_configuration = match current_repo.config() {
         Ok(config) => config,
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e)
     };
 
     let mut commit_message = String::new();
@@ -95,7 +95,7 @@ pub fn commit(repo: Option<&Repository>, debug: bool) -> Result<i8, String> {
                 }
                 _ => "",
             },
-            Err(e) => return Err(e)
+            Err(e) => return Err(Error::new(ErrorCode::NotFound, ErrorClass::Invalid, e.to_string()))
         };
 
         commit_message.push_str(emoji);
@@ -108,21 +108,21 @@ pub fn commit(repo: Option<&Repository>, debug: bool) -> Result<i8, String> {
         commit_message.push_str("unit testing");
     }
 
-    let name = repo_configuration.get_string("user.name").unwrap().to_string();
-    let email = repo_configuration.get_string("user.email").unwrap().to_string();
+    let name = repo_configuration.get_string("user.name")?.to_string();
+    let email = repo_configuration.get_string("user.email")?.to_string();
 
     // get index and write tree
     let mut index = match current_repo.index() {
         Ok(idx) => idx,
-        Err(e) => return Err(e.message().to_string())
+        Err(e) => return Err(e)
     };
     let tree_oid = match index.write_tree() {
         Ok(oid) => oid,
-        Err(e) => return Err(e.message().to_string())
+        Err(e) => return Err(e)
     };
     let tree = match current_repo.find_tree(tree_oid) {
         Ok(idx_tree) => idx_tree,
-        Err(e) => return Err(e.message().to_string())
+        Err(e) => return Err(e)
     };
 
     // get HEAD commit to set as parent
@@ -130,13 +130,13 @@ pub fn commit(repo: Option<&Repository>, debug: bool) -> Result<i8, String> {
         Ok(head) => {
             match head.peel_to_commit() {
                 Ok(commit) => vec![commit],
-                Err(e) => return Err(e.to_string()),
+                Err(e) => return Err(e),
             }
         }
         Err(_) => vec![], // Unborn branch, so NO parent
     };
 
-    let signature = Signature::now(&name, &email).unwrap();
+    let signature = Signature::now(&name, &email)?;
 
     let parent_refs: Vec<&git2::Commit> = parents.iter().collect();
     current_repo.commit(
@@ -146,9 +146,7 @@ pub fn commit(repo: Option<&Repository>, debug: bool) -> Result<i8, String> {
         &(commit_message.as_str()),
         &tree,
         &parent_refs,
-    ).unwrap();
-
-    Ok(0)
+    )
 }
 
 #[cfg(test)]
