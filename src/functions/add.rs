@@ -1,5 +1,4 @@
-use std::path::Path;
-use git2::Repository;
+use git2::{Error, Repository};
 use crate::types::repository::get_current_repository;
 
 /// Adds a list of files to the staging area (index) of a Git repository.
@@ -25,12 +24,12 @@ use crate::types::repository::get_current_repository;
 /// # Returns
 ///
 /// * `Ok(0)` on success.
-pub fn add(files: &Vec<String>, repo: Option<&Repository>) -> Result<i8, String> {
+pub fn add(files: &Vec<String>, repo: Option<&Repository>) -> Result<(), Error> {
     let owned_repo;
     let current_repo = match repo{
         Some(r) => r,
         _ => {
-            owned_repo = get_current_repository().map_err(|e| e.to_string())?;
+            owned_repo = get_current_repository().map_err(|e| e)?;
             &owned_repo
         }
     };
@@ -38,18 +37,21 @@ pub fn add(files: &Vec<String>, repo: Option<&Repository>) -> Result<i8, String>
     // get the index (staging area)
     let mut index = match current_repo.index() {
         Ok(index) => index,
-        Err(e) => return Err(e.to_string()),
+        Err(e) => return Err(e),
     };
 
-    for file in files {
-        let file_path = Path::new(&file);
-        index.add_path(file_path).expect("Error while adding file path to index");
-    }
+    let corrected_files: Vec<String> = files
+        .iter()
+        .map(|f| {
+            f.strip_prefix(".\\").unwrap_or(f)
+                .to_string()
+        })
+        .collect();
+
+    index.add_all(corrected_files, git2::IndexAddOption::DEFAULT, None).expect("Error while adding all files");
 
     // write index to disk
-    index.write().expect("Error while writing the index in the disk");
-
-    Ok(0)
+    index.write()
 }
 
 #[cfg(test)]

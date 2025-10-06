@@ -1,5 +1,15 @@
-use git2::{Cred, PushOptions, RemoteCallbacks, Repository};
 use crate::types::repository::get_current_repository;
+use git2::{Config, Cred, Error, PushOptions, RemoteCallbacks, Repository};
+
+// function to create remote callbacks for a https repo url
+fn create_https_callback(repo_config: Config) -> RemoteCallbacks<'static> {
+    let mut callbacks = RemoteCallbacks::new();
+    callbacks.credentials(move |url, username_from_url, _allowed_types| {
+        Cred::credential_helper(&repo_config, url, username_from_url)
+    });
+
+    callbacks
+}
 
 // function to create remote callbacks for an ssh repo url
 fn create_ssh_callbacks() -> RemoteCallbacks<'static> {
@@ -34,45 +44,59 @@ fn create_ssh_callbacks() -> RemoteCallbacks<'static> {
 /// # Returns
 ///
 /// * `Ok(0)` on successful push.
-pub fn push(repo: Option<&Repository>) -> Result<i8, String> {
+pub fn push(repo: Option<&Repository>) -> Result<(), Error> {
     let owned_repo;
-    let current_repo = match repo{
+    let current_repo = match repo {
         Some(r) => r,
         _ => {
-            owned_repo = get_current_repository().map_err(|e| e.to_string())?;
+            owned_repo = get_current_repository().map_err(|e| e)?;
             &owned_repo
         }
     };
 
     let head = match current_repo.head() {
         Ok(h) => h,
-        Err(e) => return Err(e.to_string()),
+        Err(e) => return Err(e),
     };
     let branch = head.shorthand().unwrap();
     let refspec = format!("refs/heads/{}:refs/heads/{}", branch, branch);
 
-    let callbacks = create_ssh_callbacks();
-
     let mut push_options = PushOptions::new();
-    push_options.remote_callbacks(callbacks);
+
+    let repo_configuration = match current_repo.config() {
+        Ok(config) => config,
+        Err(e) => return Err(e)
+    };
+
+    let url = repo_configuration.get_string("remote.origin.url")?.to_string();
+    if !url.contains("https") {
+        let callbacks = create_ssh_callbacks();
+        push_options.remote_callbacks(callbacks);
+    } else {
+        let config = match current_repo.config() {
+            Ok(config) => config,
+            Err(e) => return Err(e)
+        };
+        let callbacks = create_https_callback(config);
+        push_options.remote_callbacks(callbacks);
+    }
 
     let mut origin = match current_repo.find_remote("origin") {
         Ok(org) => org,
-        Err(e) => return Err(e.to_string())
+        Err(e) => return Err(e),
     };
-    let _ = origin.push(&[refspec], Some(&mut push_options));
 
-    Ok(0)
+    origin.push(&[refspec], Some(&mut push_options))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
-    use git2::{Repository, Signature};
-    use tempfile::tempdir;
     use crate::functions::add::add;
     use crate::functions::commit::commit;
     use crate::functions::push::push;
+    use git2::{Repository, Signature};
+    use std::fs::File;
+    use tempfile::tempdir;
 
     #[test]
     fn test_push() {
@@ -93,7 +117,15 @@ mod tests {
         let mut index = repo.index().unwrap();
         let tree_id = index.write_tree().unwrap();
         tree = repo.find_tree(tree_id).unwrap();
-        repo.commit(Some("HEAD"), &signature, &signature, "Initial commit", &tree, &[]).unwrap();
+        repo.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "Initial commit",
+            &tree,
+            &[],
+        )
+        .unwrap();
 
         let _ = commit(Some(&repo), true);
 
