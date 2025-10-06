@@ -1,3 +1,12 @@
 site_name: GlyphIt
 theme:
   name: material
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Usage: usage.md
+  - Commands: commands.md
+  - Architecture: architecture.md
+  - Development: development.md
+  - Changelog: changelog.md
