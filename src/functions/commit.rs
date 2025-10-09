@@ -161,10 +161,14 @@ pub fn commit(repo: Option<&Repository>, debug: bool) -> Result<Oid, Error> {
 
         commit_message.push_str(emoji);
 
-        let description = user_input("Provide a commit message > ".to_string());
-        commit_message.push_str(description.as_str());
-        let breaking_changes = user_input("Breaking changes > ".to_string());
-        commit_message.push_str(breaking_changes.as_str());
+        let title = user_input("Provide a commit title > ".to_string());
+        commit_message.push_str(title.as_str());
+        commit_message.push_str("\n");
+        let message = user_input("Provide a commit message > ".to_string());
+        commit_message.push_str(message.as_str());
+        commit_message.push_str("\n");
+        let breaking_changes = user_input("Provide a breaking changes description > ".to_string());
+        commit_message.push_str(format!("BREAKING CHANGES: {}\n", breaking_changes).as_str());
     } else {
         commit_message.push_str("unit testing");
     }
