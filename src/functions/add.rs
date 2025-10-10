@@ -40,13 +40,16 @@ pub fn add(files: &Vec<String>, repo: Option<&Repository>) -> Result<(), Error> 
         Err(e) => return Err(e),
     };
 
-    let corrected_files: Vec<String> = files
-        .iter()
-        .map(|f| {
-            f.strip_prefix(".\\").unwrap_or(f)
-                .to_string()
-        })
-        .collect();
+    let corrected_files: Vec<String> = if files[0] == "." {
+            vec![files[0].to_string()]
+    } else {
+        files.iter()
+            .map(|f| {
+                f.strip_prefix(".\\").unwrap_or(f)
+                    .to_string()
+            })
+            .collect()
+    };
 
     index.add_all(corrected_files, git2::IndexAddOption::DEFAULT, None).expect("Error while adding all files");
 
@@ -76,7 +79,7 @@ mod tests {
 
         add(&files, Some(repo)).unwrap();
 
-        // check index contains dummy.txt
+        // check if the index contains dummy.txt
         let index = repo.index().unwrap();
         assert!(index.get_path(Path::new("dummy.txt"), 0).is_some());
     }

@@ -20,7 +20,7 @@ fn user_input(message: String) -> String {
 fn select_emoji() -> Result<String, InquireError> {
     let options = vec![
         "🎨 :art: Improve structure/format",
-        "⚡  :zap: Improve performance",
+        "⚡ :zap: Improve performance",
         "🔥 :fire: Remove code or files",
         "🐛 :bug: Fix a bug",
         "🚑️ :ambulance: Critical hotfix",
